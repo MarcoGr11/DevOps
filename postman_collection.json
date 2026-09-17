@@ -1,0 +1,367 @@
+{
+  "info": {
+    "name": "Coworking Booking API",
+    "description": "Django REST Framework API for booking coworking resources (rooms/desks) by time slot.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000", "type": "string" },
+    { "key": "resource_id", "value": "", "type": "string" },
+    { "key": "slot_id", "value": "", "type": "string" },
+    { "key": "booking_id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "GET Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/health/", "host": ["{{base_url}}"], "path": ["api", "health", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Resource",
+      "item": [
+        {
+          "name": "List Resources",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/resources/", "host": ["{{base_url}}"], "path": ["api", "resources", ""] }
+          }
+        },
+        {
+          "name": "Create Resource",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('resource_id', pm.response.json().id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Room A\",\n    \"resource_type\": \"room\",\n    \"capacity\": 4\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/resources/", "host": ["{{base_url}}"], "path": ["api", "resources", ""] }
+          }
+        },
+        {
+          "name": "Retrieve Resource",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/resources/{{resource_id}}/", "host": ["{{base_url}}"], "path": ["api", "resources", "{{resource_id}}", ""] }
+          }
+        },
+        {
+          "name": "Update Resource (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Room A (renamed)\",\n    \"resource_type\": \"room\",\n    \"capacity\": 6\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/resources/{{resource_id}}/", "host": ["{{base_url}}"], "path": ["api", "resources", "{{resource_id}}", ""] }
+          }
+        },
+        {
+          "name": "Partial Update Resource (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"capacity\": 8\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/resources/{{resource_id}}/", "host": ["{{base_url}}"], "path": ["api", "resources", "{{resource_id}}", ""] }
+          }
+        },
+        {
+          "name": "Delete Resource",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/resources/{{resource_id}}/", "host": ["{{base_url}}"], "path": ["api", "resources", "{{resource_id}}", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slot",
+      "item": [
+        {
+          "name": "List Slots",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/slots/", "host": ["{{base_url}}"], "path": ["api", "slots", ""] }
+          }
+        },
+        {
+          "name": "List Slots (filtered by resource + date)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/slots/?resource={{resource_id}}&date=2026-09-20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "slots", ""],
+              "query": [
+                { "key": "resource", "value": "{{resource_id}}" },
+                { "key": "date", "value": "2026-09-20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Slot",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('slot_id', pm.response.json().id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"resource\": {{resource_id}},\n    \"start_time\": \"2026-09-20T10:00:00Z\",\n    \"end_time\": \"2026-09-20T11:00:00Z\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/slots/", "host": ["{{base_url}}"], "path": ["api", "slots", ""] }
+          }
+        },
+        {
+          "name": "Retrieve Slot",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/slots/{{slot_id}}/", "host": ["{{base_url}}"], "path": ["api", "slots", "{{slot_id}}", ""] }
+          }
+        },
+        {
+          "name": "Update Slot (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"resource\": {{resource_id}},\n    \"start_time\": \"2026-09-20T12:00:00Z\",\n    \"end_time\": \"2026-09-20T13:00:00Z\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/slots/{{slot_id}}/", "host": ["{{base_url}}"], "path": ["api", "slots", "{{slot_id}}", ""] }
+          }
+        },
+        {
+          "name": "Partial Update Slot (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"end_time\": \"2026-09-20T13:30:00Z\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/slots/{{slot_id}}/", "host": ["{{base_url}}"], "path": ["api", "slots", "{{slot_id}}", ""] }
+          }
+        },
+        {
+          "name": "Delete Slot",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/slots/{{slot_id}}/", "host": ["{{base_url}}"], "path": ["api", "slots", "{{slot_id}}", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Booking",
+      "item": [
+        {
+          "name": "List Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/bookings/", "host": ["{{base_url}}"], "path": ["api", "bookings", ""] }
+          }
+        },
+        {
+          "name": "Create Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('booking_id', pm.response.json().id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"slot\": {{slot_id}},\n    \"customer_name\": \"Bohdan\",\n    \"customer_email\": \"bohdan@example.com\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/bookings/", "host": ["{{base_url}}"], "path": ["api", "bookings", ""] }
+          }
+        },
+        {
+          "name": "Retrieve Booking",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/bookings/{{booking_id}}/", "host": ["{{base_url}}"], "path": ["api", "bookings", "{{booking_id}}", ""] }
+          }
+        },
+        {
+          "name": "Confirm Booking",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/bookings/{{booking_id}}/confirm/", "host": ["{{base_url}}"], "path": ["api", "bookings", "{{booking_id}}", "confirm", ""] }
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/bookings/{{booking_id}}/cancel/", "host": ["{{base_url}}"], "path": ["api", "bookings", "{{booking_id}}", "cancel", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario: Double Booking (expect 400)",
+      "item": [
+        {
+          "name": "1. Create Resource",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('resource_id', pm.response.json().id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Room A\",\n    \"resource_type\": \"room\",\n    \"capacity\": 4\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/resources/", "host": ["{{base_url}}"], "path": ["api", "resources", ""] }
+          }
+        },
+        {
+          "name": "2. Create Slot",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('slot_id', pm.response.json().id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"resource\": {{resource_id}},\n    \"start_time\": \"2026-09-20T10:00:00Z\",\n    \"end_time\": \"2026-09-20T11:00:00Z\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/slots/", "host": ["{{base_url}}"], "path": ["api", "slots", ""] }
+          }
+        },
+        {
+          "name": "3. Create Booking #1 (expect 201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"slot\": {{slot_id}},\n    \"customer_name\": \"Bohdan\",\n    \"customer_email\": \"bohdan@example.com\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/bookings/", "host": ["{{base_url}}"], "path": ["api", "bookings", ""] }
+          }
+        },
+        {
+          "name": "4. Create Booking #2 on same slot (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 - slot already booked', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"slot\": {{slot_id}},\n    \"customer_name\": \"Someone Else\",\n    \"customer_email\": \"other@example.com\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/bookings/", "host": ["{{base_url}}"], "path": ["api", "bookings", ""] }
+          }
+        }
+      ]
+    }
+  ]
+}
