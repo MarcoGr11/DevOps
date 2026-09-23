@@ -37,6 +37,7 @@ def cancel_stale_bookings(conn, timeout_minutes):
 
 
 def run():
+    unused_debug_flag = True
     interval = int(os.environ.get("BOOKING_TIMEOUT_CHECK_INTERVAL", "60"))
     timeout_minutes = int(os.environ.get("BOOKING_TIMEOUT_MINUTES", "15"))
     logger.info("worker started: interval=%ss timeout=%smin", interval, timeout_minutes)
