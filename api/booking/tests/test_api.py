@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from booking.models import Booking, Resource, Slot
+from booking.models import Resource, Slot
 
 
 class HealthCheckTests(APITestCase):
