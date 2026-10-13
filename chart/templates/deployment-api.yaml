@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "booking.fullname" . }}-api
+  labels:
+    {{- include "booking.labels" (dict "ctx" $ "component" "api") | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount.api }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "booking.selectorLabels" (dict "ctx" $ "component" "api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "booking.labels" (dict "ctx" $ "component" "api") | nindent 8 }}
+      annotations:
+        # env comes from envFrom, which is read only at container start: roll pods when it changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: api
+          image: {{ include "booking.image" (dict "ctx" $ "image" .Values.image.api) }}
+          imagePullPolicy: {{ .Values.image.api.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "booking.fullname" . }}-config
+            - secretRef:
+                name: {{ include "booking.fullname" . }}-secret
+          resources:
+            {{- toYaml .Values.resources.api | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /api/health/, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /api/health/, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              # give the Service time to drop this pod from endpoints before gunicorn stops
+              exec:
+                command: ["sleep", "5"]

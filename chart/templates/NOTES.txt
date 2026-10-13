@@ -1,0 +1,19 @@
+Release "{{ .Release.Name }}" ({{ .Chart.Name }} {{ .Chart.Version }}) installed in namespace "{{ .Release.Namespace }}".
+api image: {{ include "booking.image" (dict "ctx" $ "image" .Values.image.api) }}, replicas: {{ .Values.replicaCount.api }}
+
+Wait for the pods:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+{{- if .Values.ingress.enabled }}
+
+Via Ingress (host {{ .Values.ingress.host }}):
+  minikube tunnel   # in a separate terminal; add "127.0.0.1 {{ .Values.ingress.host }}" to /etc/hosts
+  curl http://{{ .Values.ingress.host }}/api/health/
+{{- end }}
+
+Via port-forward:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "booking.fullname" . }}-api 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/api/health/
+
+Smoke test:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
