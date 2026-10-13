@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "booking.fullname" . }}-config
+  labels:
+    {{- include "booking.labels" (dict "ctx" $) | nindent 4 }}
+data:
+  POSTGRES_DB: {{ .Values.config.postgresDb | quote }}
+  POSTGRES_USER: {{ .Values.config.postgresUser | quote }}
+  POSTGRES_HOST: {{ include "booking.postgresHost" . | quote }}
+  POSTGRES_PORT: {{ .Values.postgres.port | quote }}
+  DJANGO_DEBUG: {{ .Values.config.djangoDebug | quote }}
+  DJANGO_ALLOWED_HOSTS: {{ .Values.config.djangoAllowedHosts | quote }}
+  BOOKING_TIMEOUT_CHECK_INTERVAL: {{ .Values.config.bookingTimeoutCheckInterval | quote }}
+  BOOKING_TIMEOUT_MINUTES: {{ .Values.config.bookingTimeoutMinutes | quote }}

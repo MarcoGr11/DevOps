@@ -1,0 +1,19 @@
+{{- if .Values.postgres.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "booking.fullname" . }}-postgres-data
+  labels:
+    {{- include "booking.labels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.postgres.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      # ponytail: size applies on first install only; an existing claim keeps its size
+      # (default minikube storageclass cannot expand volumes). Resize manually if the class supports it.
+      {{- $existing := lookup "v1" "PersistentVolumeClaim" .Release.Namespace (printf "%s-postgres-data" (include "booking.fullname" .)) }}
+      storage: {{ if $existing }}{{ $existing.spec.resources.requests.storage }}{{ else }}{{ .Values.postgres.persistence.size }}{{ end }}
+{{- end }}

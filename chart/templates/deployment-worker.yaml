@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "booking.fullname" . }}-worker
+  labels:
+    {{- include "booking.labels" (dict "ctx" $ "component" "worker") | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount.worker }}
+  selector:
+    matchLabels:
+      {{- include "booking.selectorLabels" (dict "ctx" $ "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "booking.labels" (dict "ctx" $ "component" "worker") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: worker
+          image: {{ include "booking.image" (dict "ctx" $ "image" .Values.image.worker) }}
+          imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "booking.fullname" . }}-config
+            - secretRef:
+                name: {{ include "booking.fullname" . }}-secret
+          resources:
+            {{- toYaml .Values.resources.worker | nindent 12 }}
