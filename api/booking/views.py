@@ -1,3 +1,6 @@
+import os
+import socket
+
 from django.utils.dateparse import parse_date
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -10,7 +13,7 @@ from .serializers import BookingSerializer, ResourceSerializer, SlotSerializer
 
 class HealthCheckView(APIView):
     def get(self, request):
-        return Response({"status": "ok"})
+        return Response({"status": "ok", "version": os.environ.get("APP_VERSION", "dev"), "pod": socket.gethostname()})
 
 
 class ResourceViewSet(viewsets.ModelViewSet):
