@@ -1,4 +1,4 @@
-"""Build reports/labN-*.pdf from reports/labN-checklist.md and PNGs in reports/screens/.
+"""Build reports/labN-*.pdf from reports/labN-checklist.md and PNGs in reports/screens/лабN/.
 
 Usage:  python reports/build_report.py 3          (or 4, or 3 4)
         python reports/build_report.py 3 --check  # only list missing screenshots / empty texts
@@ -9,9 +9,10 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCREENS = HERE / "screens"
+SCREENS_ROOT = HERE / "screens"
 REPO = "https://github.com/MarcoGr11/DevOps"
 STUDENT = "MarcoGr"
+PT_PER_PX = 0.25  # ~ widest Retina terminal shot (2100 px) across the A4 text width
 
 LABS = {
     "3": {
@@ -35,14 +36,20 @@ LABS = {
     "4": {
         "pdf": "lab4-helm.pdf",
         "title": "Лабораторна робота №4. Пакування застосунку в Helm-чарт",
-        "intro": "",
+        "intro": (
+            "Маніфести лаби №3 перенесено в Helm-чарт `chart/` (booking 0.1.0, appVersion 1.0.0): образи, "
+            "репліки, ресурси, ConfigMap, Secret та Ingress-хост винесено у `values.yaml`, окремі значення для "
+            "середовищ — у `values-dev.yaml` і `values-prod.yaml`. До чарта додано pre-upgrade hook "
+            "(Job перевірки БД) і `helm test`. Середовище: minikube, Kubernetes v1.37.0, Helm v3.22.0; "
+            "реліз `booking` у namespace `coworking-booking`."
+        ),
         "conclusion": (
-            "У роботі маніфести лаби №3 перетворено на Helm-чарт із параметрами у values.yaml, "
-            "окремими значеннями для dev і prod, допоміжними шаблонами, pre-upgrade hook і helm test. "
-            "Освоєно повний життєвий цикл релізу: lint, template, install, upgrade, history, rollback "
-            "і uninstall. На відміну від kubectl, де кожен об'єкт застосовується і відкочується "
-            "окремо, Helm керує всім застосунком як одним релізом: одна команда встановлює, оновлює "
-            "або видаляє всі об'єкти, а кожна ревізія зберігається і може бути відновлена."
+            "Чарт рендериться для dev і prod без встановлення, значення перекриваються в порядку "
+            "values.yaml < -f < --set, а реліз пройшов повний цикл: install, два upgrade, history, rollback, "
+            "test і uninstall. Набір об'єктів у чарті той самий, що в лабі №3, але з kubectl кожен файл "
+            "застосовувався окремо, значення для середовищ доводилось правити вручну, а історія велась лише для "
+            "одного Deployment. Helm керує всім застосунком як одним релізом: кожна ревізія зберігається в "
+            "Secret кластера, rollback повертає всі об'єкти разом, а uninstall прибирає їх однією командою."
         ),
     },
 }
@@ -83,19 +90,23 @@ def parse(md_path):
 
 def build(lab, check_only):
     meta = LABS[lab]
+    screens = SCREENS_ROOT / f"лаб{lab}"
     sections = parse(HERE / f"lab{lab}-checklist.md")
     items = [it for _, its in sections for it in its]
-    missing = [it["png"] for it in items if not (SCREENS / it["png"]).is_file()]
+    missing = [it["png"] for it in items if not (screens / it["png"]).is_file()]
     empty = [it["png"] for it in items if not it["why"].strip()]
     print(f"lab {lab}: {len(items)} screenshots expected, {len(missing)} missing, {len(empty)} without 'Що видно'")
     for p in missing:
-        print(f"  missing: reports/screens/{p}")
+        print(f"  missing: {screens.relative_to(HERE.parent) / p}")
     for p in empty:
         print(f"  no text: {p}")
     if check_only or missing or empty:
         return not (missing or empty)
 
+    from io import BytesIO
     from xml.sax.saxutils import escape
+
+    from PIL import Image as PILImage
 
     from reportlab.lib.enums import TA_CENTER
     from reportlab.lib.pagesizes import A4
@@ -118,6 +129,16 @@ def build(lab, check_only):
     title = ParagraphStyle("title", parent=h1, fontSize=15, leading=19, spaceBefore=0)
     meta_style = ParagraphStyle("meta", parent=body, textColor="#333333")
 
+    def split(im):
+        """Cut at the blank pixel row closest to the middle, so no text line is sliced."""
+        mid = im.height // 2
+        for d in range(mid):
+            for y in (mid - d, mid + d):
+                lo, hi = im.crop((0, y, im.width, y + 1)).convert("L").getextrema()
+                if hi - lo < 10:
+                    return [im.crop((0, 0, im.width, y)), im.crop((0, y, im.width, im.height))]
+        return [im]
+
     def p(text, style=body):
         return Paragraph(re.sub(r"`([^`]+)`", r'<font name="Mono">\1</font>', escape(text)), style)
 
@@ -137,11 +158,21 @@ def build(lab, check_only):
         head = [p(section, h1)]  # kept with the first item so a heading never ends a page
         for it in its:
             n += 1
-            img = Image(str(SCREENS / it["png"]))
-            scale = min(max_w / img.imageWidth, max_h / img.imageHeight)
-            img.drawWidth, img.drawHeight = img.imageWidth * scale, img.imageHeight * scale
-            story.append(KeepTogether(head + [p(it["title"], h2), p(it["what"]), img,
-                                       p(f"Рис. {n}. {it['caption'] or it['title']}", caption), p(it["why"])]))
+            parts = [PILImage.open(screens / it["png"]).convert("RGB")]
+            # same pt-per-px for every screenshot, so terminal text has one size
+            scale = min(PT_PER_PX, max_w / parts[0].width)
+            if parts[0].height * scale > doc.height / 2:  # tall: cut in two between terminal lines to fill pages
+                parts = split(parts[0])
+            imgs = []
+            for part in parts:
+                buf = BytesIO()
+                part.save(buf, "PNG")
+                imgs.append(Image(buf, part.width * scale, part.height * scale))
+            cap = p(f"Рис. {n}. {it['caption'] or it['title']}", caption)
+            story.append(KeepTogether(head + [p(it["title"], h2), p(it["what"]), imgs[0]] + ([cap] if len(imgs) == 1 else [])))
+            if len(imgs) > 1:
+                story.append(KeepTogether([imgs[1], cap]))
+            story.append(p(it["why"]))  # may flow to the next page instead of pushing the whole item there
             head = []
     story += [p("Висновок", h1), p(meta["conclusion"])]
     doc.build(story)
