@@ -31,6 +31,7 @@ Python, Django + Django REST Framework, PostgreSQL, Docker / Docker Compose.
 │   ├── requirements.txt
 │   ├── Dockerfile
 │   └── .dockerignore
+├── k8s/                    # маніфести Kubernetes (лаба 3) + DEMO.md зі звітом
 ├── docker-compose.yml
 ├── .gitignore
 └── README.md
@@ -55,7 +56,7 @@ Python, Django + Django REST Framework, PostgreSQL, Docker / Docker Compose.
 
 | Метод | URL | Опис |
 |---|---|---|
-| GET | `/api/health/` | health-check |
+| GET | `/api/health/` | health-check: `{"status":"ok","version":"<APP_VERSION>","pod":"<hostname>"}` |
 | GET/POST | `/api/resources/` | список / створення Resource |
 | GET/PUT/PATCH/DELETE | `/api/resources/{id}/` | деталі / оновлення / видалення Resource |
 | GET/POST | `/api/slots/?resource=<id>&date=YYYY-MM-DD` | список Slot з фільтром по ресурсу і даті, поле `is_available` |
@@ -199,3 +200,131 @@ docker compose logs -f worker
 
 Після цього `GET /api/slots/{id}/` знову покаже `"is_available": true`, а
 `GET /api/bookings/{id}/` — `"status": "cancelled"`.
+
+## Kubernetes (лабораторна №3)
+
+Маніфести лежать у `k8s/`, по одному файлу на об'єкт. Усі об'єкти живуть у
+namespace `coworking-booking`.
+
+| Файл | Об'єкт |
+|---|---|
+| `namespace.yaml` | Namespace `coworking-booking` |
+| `configmap.yaml` | ConfigMap `booking-config` |
+| `postgres-pvc.yaml` | PVC `postgres-data` (1Gi, RWO) |
+| `postgres-deployment.yaml` | Deployment `postgres` (1 репліка, `strategy: Recreate`) |
+| `postgres-service.yaml` | Service `postgres` (ClusterIP, 5432) |
+| `api-deployment.yaml` | Deployment `api`: 2 репліки, requests/limits, readiness- і liveness-проби на `/api/health/` |
+| `api-service.yaml` | Service `api` (ClusterIP, 80 → 8000) |
+| `api-ingress.yaml` | Ingress `api` для хоста `booking.local` |
+| `worker-deployment.yaml` | Deployment `worker` (2 репліки) |
+
+Secret `booking-secret` навмисно не закомічений: його значення задаються
+командою `kubectl create secret` (див. нижче).
+
+### Образи
+
+Використовуються семантичні версії, не `latest`. Їх збирають і пушать
+вручну, версія вшивається через build-arg і видна у відповіді `/api/health/`
+та в стартовому лозі worker:
+
+```bash
+for svc in api worker; do for v in 1.0.0 1.1.0; do
+  docker build --build-arg APP_VERSION=$v -t devops-$svc:$v ./$svc
+  docker tag devops-$svc:$v ghcr.io/marcogr11/devops-$svc:$v
+  docker push ghcr.io/marcogr11/devops-$svc:$v
+done; done
+```
+
+Пакети в ghcr.io публічні, тому `imagePullSecret` не потрібен.
+
+### Порядок розгортання
+
+```bash
+minikube start --driver=docker
+minikube addons enable metrics-server
+minikube addons enable ingress
+
+kubectl apply -f k8s/namespace.yaml
+kubectl create secret generic booking-secret -n coworking-booking \
+  --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 16)" \
+  --from-literal=DJANGO_SECRET_KEY="$(openssl rand -hex 32)"
+kubectl apply -f k8s/ -n coworking-booking
+kubectl get pods -n coworking-booking -w
+```
+
+При першому старті api і worker можуть кілька разів перезапуститись
+(`Connection refused`), поки postgres не стане готовим. Kubernetes сам
+перезапускає контейнери, і стан стабілізується приблизно за хвилину.
+
+### Параметри
+
+**ConfigMap `booking-config`** підключається в api і worker через `envFrom`,
+а в postgres — через `configMapKeyRef`:
+
+| Ключ | Значення | Хто використовує |
+|---|---|---|
+| `POSTGRES_DB` | `booking` | api, worker, postgres |
+| `POSTGRES_USER` | `booking` | api, worker, postgres |
+| `POSTGRES_HOST` | `postgres` (ім'я Service) | api, worker |
+| `POSTGRES_PORT` | `5432` | api, worker |
+| `DJANGO_DEBUG` | `0` | api |
+| `DJANGO_ALLOWED_HOSTS` | `*` | api |
+| `BOOKING_TIMEOUT_CHECK_INTERVAL` | `30` (с) | worker |
+| `BOOKING_TIMEOUT_MINUTES` | `15` (хв) | worker |
+
+**Secret `booking-secret`** підключається в api і worker через `envFrom`, а в
+postgres — через `secretKeyRef`:
+
+| Ключ | Опис |
+|---|---|
+| `POSTGRES_PASSWORD` | пароль користувача БД |
+| `DJANGO_SECRET_KEY` | секретний ключ Django |
+
+### Доступ з хоста
+
+З драйвером docker на macOS IP minikube (`192.168.49.2`) недоступний з
+хоста напряму. Є три способи:
+
+```bash
+# 1) port-forward на Service: завжди веде в ОДИН под, підходить для ручної перевірки
+kubectl port-forward -n coworking-booking svc/api 8080:80
+curl http://localhost:8080/api/health/
+
+# 2) через Ingress, без sudo: port-forward на ingress-контролер;
+#    балансує між усіма подами, переживає rolling update
+kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8081:80
+curl -H "Host: booking.local" http://localhost:8081/api/health/
+
+# 3) через Ingress із «справжнім» доменом (потрібен sudo для порту 80)
+echo "127.0.0.1 booking.local" | sudo tee -a /etc/hosts
+minikube tunnel            # окремий термінал
+curl http://booking.local/api/health/   # або відкрити в браузері
+```
+
+### Рішення
+
+- **Postgres: Deployment + окремий PVC замість StatefulSet.** Інстанс БД
+  один. Стабільні мережеві імена подів, впорядкований старт і
+  `volumeClaimTemplates` StatefulSet'а потрібні, коли реплік кілька
+  (primary/replica). Для одного пода Deployment + PVC простіший і так само
+  зберігає дані між перезапусками. `strategy: Recreate` гарантує, що
+  RWO-том не намагатимуться змонтувати два поди одночасно.
+- **Worker з 2 репліками безпечний.** Скасування робиться одним атомарним
+  `UPDATE ... WHERE status='pending' ... RETURNING id`. Postgres блокує
+  рядки, і друга транзакція після очікування переоцінює `WHERE` (READ
+  COMMITTED). Тому кожне бронювання скасується рівно один раз. Ціна другої
+  репліки — лише один зайвий легкий запит за інтервал.
+- **Rolling update без простою** забезпечують readiness-проба,
+  `maxUnavailable: 0` / `maxSurge: 1` і `preStop: sleep 5`. Останнє дає
+  Service та Ingress час прибрати под з ендпоінтів до того, як gunicorn
+  отримає SIGTERM.
+- **Проби.** readiness — `initialDelaySeconds: 5`, `periodSeconds: 5`: под
+  швидко потрапляє в балансування. liveness — `initialDelaySeconds: 30`,
+  `periodSeconds: 10`, `timeoutSeconds: 3`: не вбиває контейнер, поки той
+  ще стартує або виконує `migrate`.
+- **Відоме обмеження:** `migrate` виконується в `CMD` кожного api-пода. При
+  першому розгортанні кілька подів можуть запустити його одночасно. Для
+  production це варто винести в Job або initContainer.
+
+Повний вивід команд розгортання, життєвого циклу й діагностики зібрано в
+[`k8s/DEMO.md`](k8s/DEMO.md).
