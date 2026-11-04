@@ -1,0 +1,33 @@
+# Dev (minikube): one replica each, small resources, debug on, local Ingress host.
+image:
+  api:
+    tag: "1.0.0"
+  worker:
+    tag: "1.0.0"
+
+replicaCount:
+  api: 1
+  worker: 1
+
+resources:
+  api:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { cpu: 250m, memory: 192Mi }
+  worker:
+    requests: { cpu: 20m, memory: 32Mi }
+    limits: { cpu: 100m, memory: 96Mi }
+  postgres:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+
+config:
+  djangoDebug: "1"
+  bookingTimeoutCheckInterval: "15"
+
+ingress:
+  enabled: true
+  host: dev.booking.local
+
+postgres:
+  persistence:
+    size: 1Gi

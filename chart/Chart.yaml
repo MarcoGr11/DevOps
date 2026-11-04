@@ -1,0 +1,8 @@
+apiVersion: v2
+name: booking
+description: Coworking booking system — Django REST API, background worker and PostgreSQL
+type: application
+# version of the chart itself (templates, values structure)
+version: 0.1.0
+# version of the application images (ghcr.io/marcogr11/devops-api|worker)
+appVersion: "1.0.0"

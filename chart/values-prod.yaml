@@ -1,0 +1,39 @@
+# Prod: stable image 1.1.0, more replicas and resources, public Ingress host.
+# Secrets are intentionally empty: pass them at install/upgrade time, e.g.
+#   --set secret.postgresPassword=... --set secret.djangoSecretKey=...
+image:
+  api:
+    tag: "1.1.0"
+  worker:
+    tag: "1.1.0"
+
+replicaCount:
+  api: 3
+  worker: 2
+
+resources:
+  api:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  worker:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+  postgres:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
+config:
+  djangoDebug: "0"
+  bookingTimeoutCheckInterval: "60"
+
+secret:
+  postgresPassword: ""
+  djangoSecretKey: ""
+
+ingress:
+  enabled: true
+  host: booking.example.com
+
+postgres:
+  persistence:
+    size: 10Gi

@@ -1,0 +1,75 @@
+# Defaults target the local dev cluster (minikube).
+
+image:
+  api:
+    repository: ghcr.io/marcogr11/devops-api
+    tag: "" # empty -> .Chart.AppVersion
+    pullPolicy: IfNotPresent
+  worker:
+    repository: ghcr.io/marcogr11/devops-worker
+    tag: ""
+    pullPolicy: IfNotPresent
+  postgres:
+    repository: postgres
+    tag: 16-alpine
+    pullPolicy: IfNotPresent
+
+replicaCount:
+  api: 2
+  worker: 2
+  postgres: 1 # single instance on a RWO volume; do not scale
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+postgres:
+  port: 5432
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: "" # empty -> cluster default
+
+resources:
+  api:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+  worker:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+  postgres:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+# Application settings, rendered into the ConfigMap
+config:
+  postgresDb: booking
+  postgresUser: booking
+  djangoDebug: "0"
+  djangoAllowedHosts: "*"
+  bookingTimeoutCheckInterval: "30"
+  bookingTimeoutMinutes: "15"
+
+# Rendered into the Secret. Dev placeholders only — override for any real environment:
+#   --set secret.postgresPassword=... --set secret.djangoSecretKey=...
+secret:
+  postgresPassword: dev-only-password
+  djangoSecretKey: dev-only-insecure-secret-key
+
+ingress:
+  enabled: true
+  className: nginx
+  host: booking.local
+
+# The namespace is normally created by `helm install --create-namespace`;
+# enable only when installing into a namespace that does not exist and is not created by Helm.
+namespace:
+  create: false
+
+hooks:
+  dbCheck:
+    enabled: true
+
+tests:
+  image: curlimages/curl:8.11.1

@@ -1,0 +1,46 @@
+{{- if .Values.hooks.dbCheck.enabled }}
+# pre-upgrade: abort the upgrade if PostgreSQL does not accept an authenticated connection
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "booking.fullname" . }}-db-check
+  labels:
+    {{- include "booking.labels" (dict "ctx" $ "component" "db-check") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        {{- include "booking.labels" (dict "ctx" $ "component" "db-check") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-check
+          image: {{ include "booking.image" (dict "ctx" $ "image" .Values.image.postgres) }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "booking.fullname" . }}-config
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ include "booking.fullname" . }}-secret, key: POSTGRES_PASSWORD }
+          command:
+            - sh
+            - -c
+            - |
+              for i in $(seq 1 20); do
+                if psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc 'select 1' >/dev/null; then
+                  echo "database $POSTGRES_DB at $POSTGRES_HOST:$POSTGRES_PORT is ready"; exit 0
+                fi
+                echo "waiting for database ($i/20)"; sleep 3
+              done
+              echo "database is not ready, aborting upgrade"; exit 1
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+{{- end }}

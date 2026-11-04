@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "booking.postgresHost" . }}
+  labels:
+    {{- include "booking.labels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+spec:
+  selector:
+    {{- include "booking.selectorLabels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+  ports:
+    - port: {{ .Values.postgres.port }}
+      targetPort: {{ .Values.postgres.port }}
