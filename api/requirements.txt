@@ -2,3 +2,4 @@ Django==5.2.17
 djangorestframework==3.18.1
 psycopg2-binary==2.9.13
 gunicorn==22.0.0
+prometheus-client==0.26.0
