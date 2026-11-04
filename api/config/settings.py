@@ -19,6 +19,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "booking.metrics_middleware.MetricsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -89,4 +90,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+}
+
+# Everything goes to stdout as one JSON object per line (collected by Alloy into Loki).
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"json": {"()": "booking.metrics_middleware.JsonFormatter"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "json"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {"django": {"handlers": ["console"], "level": "INFO", "propagate": False}},
 }
